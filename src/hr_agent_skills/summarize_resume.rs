@@ -4,27 +4,26 @@ use radkit::agent::{
     Artifact, LlmFunction, LlmWorker, OnInputResult, OnRequestResult, SkillHandler, SkillSlot,
 };
 use radkit::errors::AgentError;
+use radkit::macros::{skill, tool, LLMOutput};
 use radkit::models::providers::AnthropicLlm;
-use radkit::models::{BaseLlm, Content};
-use radkit::runtime::context::{Context, TaskContext};
-use radkit::runtime::{MemoryServiceExt, Runtime};
-use radkit::tools::{BaseTool, FunctionTool, ToolResult};
-use radkit::macros::{skill, tool};
+use radkit::models::Content;
+use radkit::runtime::context::{ProgressSender, State};
+use radkit::runtime::AgentRuntime;
+use radkit::tools::ToolResult;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::sync::Arc;
 
 // --- Data Structures, Enums, and Callable Helpers for this Skill ---
 
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+#[derive(Serialize, Deserialize, LLMOutput, JsonSchema, Debug, Clone)]
 pub struct UserData {
     pub name: String,
     pub email: String,
     pub github_username: String,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+#[derive(Serialize, Deserialize, LLMOutput, JsonSchema, Debug, Clone)]
 pub struct GitHubRepository {
     pub name: String,
     pub url: String,
@@ -163,15 +162,13 @@ impl SkillHandler for SummarizeResumeSkill {
     /// The "Attempt" handler: tries the full happy path.
     async fn on_request(
         &self,
-        task_context: &mut TaskContext,
-        context: &Context,
-        runtime: &dyn Runtime,
+        state: &mut State,
+        progress: &ProgressSender,
+        runtime: &dyn AgentRuntime,
         content: Content,
     ) -> Result<OnRequestResult, AgentError> {
         // Send intermediate status update
-        task_context
-            .send_intermediate_update("Analyzing resume...")
-            .await?;
+        progress.send_update("Analyzing resume...").await?;
 
         // Extract text from content
         let resume_text = content
@@ -181,14 +178,12 @@ impl SkillHandler for SummarizeResumeSkill {
         // Extract user data
         let user_data = extract_user_data().run(resume_text).await?;
 
-        runtime
-            .memory()
-            .save(&context.auth, "user_data", &user_data)
-            .await?;
+        // Save to session state for cross-skill sharing
+        state.session().save("user_data", &user_data)?;
 
         // Send another intermediate update
-        task_context
-            .send_intermediate_update("Fetching GitHub repositories...")
+        progress
+            .send_update("Fetching GitHub repositories...")
             .await?;
 
         // Fetch GitHub repos
@@ -198,7 +193,7 @@ impl SkillHandler for SummarizeResumeSkill {
 
         if repos.is_empty() {
             // Happy path failed. Save partial data and request input.
-            task_context.save_data("partial_user", &user_data)?;
+            state.task().save("partial_user", &user_data)?;
 
             Ok(OnRequestResult::InputRequired {
                 message: Content::from_text(
@@ -229,17 +224,19 @@ impl SkillHandler for SummarizeResumeSkill {
     /// The "Continue" handler: runs after user provides the missing input.
     async fn on_input_received(
         &self,
-        task_context: &mut TaskContext,
-        _context: &Context,
-        runtime: &dyn Runtime,
+        state: &mut State,
+        _progress: &ProgressSender,
+        _runtime: &dyn AgentRuntime,
         content: Content,
     ) -> Result<OnInputResult, AgentError> {
-        let slot: ResumeInputSlot = task_context.load_slot()?.unwrap();
+        let slot: ResumeInputSlot = state
+            .slot()?
+            .ok_or_else(|| AgentError::SkillSlot("No slot found".to_string()))?;
 
         match slot {
             ResumeInputSlot::CorrectedUsername => {
                 let partial_user: UserData =
-                    task_context.load_data("partial_user")?.ok_or_else(|| {
+                    state.task().load("partial_user")?.ok_or_else(|| {
                         AgentError::ContextError("No partial user data found".to_string())
                     })?;
 

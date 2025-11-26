@@ -1,6 +1,5 @@
 use radkit::agent::{Agent, AgentDefinition};
 use radkit::models::providers::AnthropicLlm;
-use radkit::runtime::DefaultRuntime;
 
 // --- Skill Implementations ---
 // The modular skills are defined in their own files.
@@ -12,7 +11,6 @@ use hr_agent_skills::summarize_resume::SummarizeResumeSkill;
 
 pub fn hr_agent() -> AgentDefinition {
     let hr_agent = Agent::builder()
-        .with_id("hr-agent-v1")
         .with_name("HR Agent")
         .with_description(
             "An intelligent HR agent that handles resume processing, onboarding, \
@@ -33,15 +31,16 @@ pub fn hr_agent() -> AgentDefinition {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // DefaultRuntime requires an LLM instance
+
+    use radkit::runtime::RuntimeBuilder;
     let llm = AnthropicLlm::from_env("claude-sonnet-4-5-20250929")?;
-    let runtime = DefaultRuntime::new(llm);
+    let runtime = RuntimeBuilder::new(hr_agent(), llm).build();
 
     // The `serve` method on the local runtime takes the agent definitions
     // and starts a local A2A-compliant web server.
     // Agent metadata is automatically extracted from #[skill] macros
     // and exposed via the agent card endpoint.
     runtime
-        .agents(vec![hr_agent()])
         .serve("127.0.0.1:8080")
         .await?;
 
