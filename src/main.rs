@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Agent metadata is automatically extracted from #[skill] macros
     // and exposed via the agent card endpoint.
     runtime
-        .serve("127.0.0.1:8080")
+        .serve("0.0.0.0:8080")
         .await?;
 
     Ok(())
