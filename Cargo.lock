@@ -1045,6 +1045,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "radkit",
+ "radkit_cloud",
  "reqwest",
  "schemars",
  "serde",
@@ -1061,6 +1062,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "radkit_cloud"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c0c4a6895b6cc031335c57f375f90f80962dff7c6247bc7b3b1f2aea53e5c9e"
+dependencies = [
+ "radkit",
 ]
 
 [[package]]

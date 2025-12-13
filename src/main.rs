@@ -1,6 +1,6 @@
 use radkit::agent::{Agent, AgentDefinition};
 use radkit::models::providers::AnthropicLlm;
-use radkit::runtime::DefaultRuntime;
+use radkit_cloud::PaidRuntime;
 
 // --- Skill Implementations ---
 // The modular skills are defined in their own files.
@@ -34,21 +34,18 @@ pub fn hr_agent() -> AgentDefinition {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // DefaultRuntime requires an LLM instance
     let llm = AnthropicLlm::from_env("claude-sonnet-4-5-20250929")?;
-    let runtime = DefaultRuntime::new(llm);
+    
 
     // The `serve` method on the local runtime takes the agent definitions
     // and starts a local A2A-compliant web server.
     // Agent metadata is automatically extracted from #[skill] macros
     // and exposed via the agent card endpoint.
-    runtime
-        .agents(vec![hr_agent()])
-        .serve("127.0.0.1:8080")
-        .await?;
+    // let runtime = DefaultRuntime::new(llm);
+    // runtime
+    //     .agents(vec![hr_agent()])
+    //     .serve("127.0.0.1:8080")
+    //     .await?;
 
+    PaidRuntime::new(hr_agent(), llm).serve().await?;
     Ok(())
 }
-
-/// WASM builds compile this example as a module and expose no native entrypoint.
-/// The cloud platform will call the #[entrypoint] function to get agent definitions.
-#[cfg(all(target_os = "wasi", target_env = "p1"))]
-fn main() {}
