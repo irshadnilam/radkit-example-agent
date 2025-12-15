@@ -44,7 +44,7 @@ impl SkillHandler for GenerateOnboardingPlanSkill {
         &self,
         state: &mut State,
         progress: &ProgressSender,
-        runtime: &dyn AgentRuntime,
+        _runtime: &dyn AgentRuntime,
         _content: Content,
     ) -> Result<OnRequestResult, AgentError> {
         // Send intermediate update
